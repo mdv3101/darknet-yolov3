@@ -4,6 +4,10 @@
 #include "blas.h"
 #include "parser.h"
 
+#ifdef OPENCV
+#include <opencv2/highgui/highgui_c.h>
+#endif
+
 typedef struct {
     float *x;
     float *y;

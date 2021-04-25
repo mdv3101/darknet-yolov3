@@ -4,6 +4,9 @@
 #include "option_list.h"
 #include "blas.h"
 
+#ifdef OPENCV
+#include <opencv2/highgui/highgui_c.h>
+#endif
 
 int inverted = 1;
 int noi = 1;

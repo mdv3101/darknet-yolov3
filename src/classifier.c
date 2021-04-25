@@ -13,6 +13,21 @@
 #include <sys/time.h>
 #endif
 
+#ifdef OPENCV
+#include <opencv2/highgui/highgui_c.h>
+#include <opencv2/core/version.hpp>
+#ifndef CV_VERSION_EPOCH
+#include <opencv2/videoio/videoio_c.h>
+#endif
+#include "image.h"
+#include "http_stream.h"
+IplImage* draw_train_chart(float max_img_loss, int max_batches, int number_of_lines, int img_size, int dont_show);
+
+void draw_train_loss(IplImage* img, int img_size, float avg_loss, float max_img_loss, int current_batch, int max_batches,
+    float precision, int draw_precision, char *accuracy_name, int dont_show, int mjpeg_port);
+
+#endif
+
 float validate_classifier_single(char *datacfg, char *filename, char *weightfile, network *existing_net, int topk_custom);
 
 float *get_regression_values(char **labels, int n)
@@ -96,7 +111,7 @@ void train_classifier(char *datacfg, char *cfgfile, char *weightfile, int *gpus,
 
 #ifdef OPENCV
     //args.threads = 3;
-    mat_cv* img = NULL;
+    IplImage* img = NULL;
     float max_img_loss = 10;
     int number_of_lines = 100;
     int img_size = 1000;
@@ -196,8 +211,8 @@ void train_classifier(char *datacfg, char *cfgfile, char *weightfile, int *gpus,
     save_weights(net, buff);
 
 #ifdef OPENCV
-    release_mat(&img);
-    destroy_all_windows_cv();
+    cvReleaseImage(&img);
+    cvDestroyAllWindows();
 #endif
 
     free_network(net);
@@ -762,9 +777,6 @@ void predict_classifier(char *datacfg, char *cfgfile, char *weightfile, char *fi
     set_batch_network(&net, 1);
     srand(2222222);
 
-    fuse_conv_batchnorm(net);
-    calculate_binary_weights(net);
-
     list *options = read_data_cfg(datacfg);
 
     char *name_list = option_find_str(options, "names", 0);
@@ -861,8 +873,6 @@ void test_classifier(char *datacfg, char *cfgfile, char *weightfile, int target_
         load_weights(&net, weightfile);
     }
     srand(time(0));
-    fuse_conv_batchnorm(net);
-    calculate_binary_weights(net);
 
     list *options = read_data_cfg(datacfg);
 
@@ -943,7 +953,7 @@ void threat_classifier(char *datacfg, char *cfgfile, char *weightfile, int cam_i
     list *options = read_data_cfg(datacfg);
 
     srand(2222222);
-    cap_cv * cap;
+    CvCapture * cap;
 
     if (filename) {
         //cap = cvCaptureFromFile(filename);
@@ -964,7 +974,8 @@ void threat_classifier(char *datacfg, char *cfgfile, char *weightfile, int cam_i
     int* indexes = (int*)calloc(top, sizeof(int));
 
     if(!cap) error("Couldn't connect to webcam.\n");
-    create_window_cv("Threat", 0, 512, 512);
+    //cvNamedWindow("Threat", CV_WINDOW_NORMAL);
+    //cvResizeWindow("Threat", 512, 512);
     float fps = 0;
     int i;
 
@@ -1054,7 +1065,7 @@ void threat_classifier(char *datacfg, char *cfgfile, char *weightfile, int cam_i
 
         if(1){
             show_image(out, "Threat");
-            wait_key_cv(10);
+            cvWaitKey(10);
         }
         free_image(in_s);
         free_image(in);
@@ -1070,7 +1081,7 @@ void threat_classifier(char *datacfg, char *cfgfile, char *weightfile, int cam_i
 
 void gun_classifier(char *datacfg, char *cfgfile, char *weightfile, int cam_index, const char *filename)
 {
-#ifdef OPENCV_DISABLE
+#ifdef OPENCV
     int bad_cats[] = {218, 539, 540, 1213, 1501, 1742, 1911, 2415, 4348, 19223, 368, 369, 370, 1133, 1200, 1306, 2122, 2301, 2537, 2823, 3179, 3596, 3639, 4489, 5107, 5140, 5289, 6240, 6631, 6762, 7048, 7171, 7969, 7984, 7989, 8824, 8927, 9915, 10270, 10448, 13401, 15205, 18358, 18894, 18895, 19249, 19697};
 
     printf("Classifier Demo\n");
@@ -1164,15 +1175,14 @@ void demo_classifier(char *datacfg, char *cfgfile, char *weightfile, int cam_ind
     set_batch_network(&net, 1);
     list *options = read_data_cfg(datacfg);
 
-    fuse_conv_batchnorm(net);
-    calculate_binary_weights(net);
-
     srand(2222222);
-    cap_cv * cap;
+    CvCapture * cap;
 
     if(filename){
+        //cap = cvCaptureFromFile(filename);
         cap = get_capture_video_stream(filename);
     }else{
+        //cap = cvCaptureFromCAM(cam_index);
         cap = get_capture_webcam(cam_index);
     }
 
@@ -1186,7 +1196,8 @@ void demo_classifier(char *datacfg, char *cfgfile, char *weightfile, int cam_ind
     int* indexes = (int*)calloc(top, sizeof(int));
 
     if(!cap) error("Couldn't connect to webcam.\n");
-    create_window_cv("Classifier", 0, 512, 512);
+    cvNamedWindow("Classifier", CV_WINDOW_NORMAL);
+    cvResizeWindow("Classifier", 512, 512);
     float fps = 0;
     int i;
 
@@ -1217,7 +1228,7 @@ void demo_classifier(char *datacfg, char *cfgfile, char *weightfile, int cam_ind
         free_image(in_s);
         free_image(in);
 
-        wait_key_cv(10);// cvWaitKey(10);
+        cvWaitKey(10);
 
         gettimeofday(&tval_after, NULL);
         timersub(&tval_after, &tval_before, &tval_result);

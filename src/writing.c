@@ -2,6 +2,10 @@
 #include "utils.h"
 #include "parser.h"
 
+#ifdef OPENCV
+#include <opencv2/highgui/highgui_c.h>
+#endif
+
 void train_writing(char *cfgfile, char *weightfile)
 {
     char* backup_directory = "backup/";
@@ -118,9 +122,10 @@ void test_writing(char *cfgfile, char *weightfile, char *filename)
 
         show_image(pred, "prediction");
         show_image(im, "orig");
-
-        wait_until_press_key_cv();
-        destroy_all_windows_cv();
+#ifdef OPENCV
+        cvWaitKey(0);
+        cvDestroyAllWindows();
+#endif
 
         free_image(upsampled);
         free_image(thresh);

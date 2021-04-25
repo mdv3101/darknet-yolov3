@@ -5,6 +5,14 @@
 #include "blas.h"
 
 #ifdef OPENCV
+#include <opencv2/highgui/highgui_c.h>
+#include <opencv2/core/version.hpp>
+#ifndef CV_VERSION_EPOCH
+#include <opencv2/videoio/videoio_c.h>
+#endif
+image get_image_from_stream(CvCapture *cap);
+image ipl_to_image(IplImage* src);
+
 void reconstruct_picture(network net, float *features, image recon, image update, float rate, float momentum, float lambda, int smooth_size, int iters);
 
 
@@ -25,8 +33,8 @@ float_pair get_rnn_vid_data(network net, char **files, int n, int batch, int ste
         int input_size = net.w*net.h*net.c;
         float* input = (float*)calloc(input_size * net.batch, sizeof(float));
         char *filename = files[rand()%n];
-        cap_cv *cap = get_capture_video_stream(filename);
-        int frames = get_capture_frame_count_cv(cap);
+        CvCapture *cap = cvCaptureFromFile(filename);
+        int frames = cvGetCaptureProperty(cap, CV_CAP_PROP_FRAME_COUNT);
         int index = rand() % (frames - steps - 2);
         if (frames < (steps + 4)){
             --b;
@@ -35,12 +43,12 @@ float_pair get_rnn_vid_data(network net, char **files, int n, int batch, int ste
         }
 
         printf("frames: %d, index: %d\n", frames, index);
-        set_capture_position_frame_cv(cap, index);
+        cvSetCaptureProperty(cap, CV_CAP_PROP_POS_FRAMES, index);
 
         int i;
         for(i = 0; i < net.batch; ++i){
-            mat_cv *src = get_capture_frame_cv(cap);
-            image im = mat_to_image_cv(src);
+            IplImage* src = cvQueryFrame(cap);
+            image im = ipl_to_image(src);
             rgbgr_image(im);
             image re = resize_image(im, net.w, net.h);
             //show_image(re, "loaded");
@@ -57,7 +65,7 @@ float_pair get_rnn_vid_data(network net, char **files, int n, int batch, int ste
             memcpy(feats + (b + i*batch)*output_size, output + i*output_size, output_size*sizeof(float));
         }
 
-        release_capture(cap); //cvReleaseCapture(&cap);
+        cvReleaseCapture(&cap);
     }
 
     //printf("%d %d %d\n", out_im.w, out_im.h, out_im.c);
@@ -156,14 +164,13 @@ void generate_vid_rnn(char *cfgfile, char *weightfile)
     set_batch_network(&net, 1);
 
     int i;
-    cap_cv *cap = get_capture_video_stream("extra/vid/ILSVRC2015/Data/VID/snippets/val/ILSVRC2015_val_00007030.mp4");
-    //CvCapture* cap = cvCaptureFromFile("extra/vid/ILSVRC2015/Data/VID/snippets/val/ILSVRC2015_val_00007030.mp4");
+    CvCapture* cap = cvCaptureFromFile("extra/vid/ILSVRC2015/Data/VID/snippets/val/ILSVRC2015_val_00007030.mp4");
     float *feat;
     float *next;
 	next = NULL;
     image last;
     for(i = 0; i < 25; ++i){
-        image im = get_image_from_stream_cpp(cap);
+        image im = get_image_from_stream(cap);
         image re = resize_image(im, extractor.w, extractor.h);
         feat = network_predict(extractor, re.data);
         if(i > 0){

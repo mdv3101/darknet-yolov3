@@ -2,6 +2,10 @@
 #include "utils.h"
 #include "parser.h"
 
+#ifdef OPENCV
+#include <opencv2/highgui/highgui_c.h>
+#endif
+
 void train_tag(char *cfgfile, char *weightfile, int clear)
 {
     srand(time(0));

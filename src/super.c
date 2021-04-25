@@ -3,6 +3,9 @@
 #include "utils.h"
 #include "parser.h"
 
+#ifdef OPENCV
+#include <opencv2/highgui/highgui_c.h>
+#endif
 
 void train_super(char *cfgfile, char *weightfile)
 {

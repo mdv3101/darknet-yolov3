@@ -117,12 +117,6 @@ float get_current_rate(network net)
             return net.learning_rate * pow(rand_uniform(0,1), net.power);
         case SIG:
             return net.learning_rate * (1./(1.+exp(net.gamma*(batch_num - net.step))));
-        case SGDR:
-            rate = net.learning_rate_min +
-                        0.5*(net.learning_rate-net.learning_rate_min)
-                        * (1. + cos( (float) (batch_num % net.batches_per_cycle)*3.14159265 / net.batches_per_cycle));
-
-            return rate;
         default:
             fprintf(stderr, "Policy is weird!\n");
             return net.learning_rate;
@@ -323,11 +317,6 @@ float train_network_sgd(network net, data d, int n)
 
 float train_network(network net, data d)
 {
-    return train_network_waitkey(net, d, 0);
-}
-
-float train_network_waitkey(network net, data d, int wait_key)
-{
     assert(d.X.rows % net.batch == 0);
     int batch = net.batch;
     int n = d.X.rows / batch;
@@ -340,7 +329,6 @@ float train_network_waitkey(network net, data d, int wait_key)
         get_next_batch(d, batch, i*batch, X, y);
         float err = train_network_datum(net, X, y);
         sum += err;
-        if(wait_key) wait_key_cv(5);
     }
     free(X);
     free(y);

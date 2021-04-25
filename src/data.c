@@ -766,11 +766,17 @@ static box float_to_box_stride(float *f, int stride)
 }
 
 #ifdef OPENCV
+#include <opencv2/highgui/highgui_c.h>
+#include <opencv2/imgproc/imgproc_c.h>
+#include <opencv2/core/version.hpp>
+#ifndef CV_VERSION_EPOCH
+#include <opencv2/videoio/videoio_c.h>
+#include <opencv2/imgcodecs/imgcodecs_c.h>
+#endif
 
 #include "http_stream.h"
 
-data load_data_detection(int n, char **paths, int m, int w, int h, int c, int boxes, int classes, int use_flip, float jitter,
-    float hue, float saturation, float exposure, int mini_batch, int track, int augment_speed, int show_imgs)
+data load_data_detection(int n, char **paths, int m, int w, int h, int c, int boxes, int classes, int use_flip, float jitter, float hue, float saturation, float exposure, int mini_batch, int track, int augment_speed)
 {
     c = c ? c : 3;
     char **random_paths;
@@ -793,15 +799,20 @@ data load_data_detection(int n, char **paths, int m, int w, int h, int c, int bo
         const char *filename = random_paths[i];
 
         int flag = (c >= 3);
-        mat_cv *src;
-        src = load_image_mat_cv(filename, flag);
-        if (src == NULL) {
+        IplImage *src;
+        if ((src = cvLoadImage(filename, flag)) == 0)
+        {
+            fprintf(stderr, "Cannot load image \"%s\"\n", filename);
+            char buff[256];
+            sprintf(buff, "echo %s >> bad.list", filename);
+            system(buff);
             if (check_mistakes) getchar();
             continue;
+            //exit(0);
         }
 
-        int oh = get_height_mat(src);
-        int ow = get_width_mat(src);
+        int oh = src->height;
+        int ow = src->width;
 
         int dw = (ow*jitter);
         int dh = (oh*jitter);
@@ -840,10 +851,10 @@ data load_data_detection(int n, char **paths, int m, int w, int h, int c, int bo
 
         fill_truth_detection(filename, boxes, d.y.vals[i], classes, flip, dx, dy, 1./sx, 1./sy, w, h);
 
-        if(show_imgs)
+        /*
         {
-            char buff[1000];
-            sprintf(buff, "aug_%s_%d", basecfg(random_paths[i]), random_gen());
+            char buff[10];
+            sprintf(buff, "aug_%s_%d", random_paths[i], random_gen());
             int t;
             for (t = 0; t < boxes; ++t) {
                 box b = float_to_box_stride(d.y.vals[i] + t*(4 + 1), 1);
@@ -855,22 +866,17 @@ data load_data_detection(int n, char **paths, int m, int w, int h, int c, int bo
                 draw_box_width(ai, left, top, right, bot, 3, 150, 100, 50); // 3 channels RGB
             }
 
-            save_image(ai, buff);
-            if (show_imgs == 1) {
-                show_image(ai, buff);
-                wait_until_press_key_cv();
-            }
-            printf("\nYou use flag -show_imgs, so will be saved aug_...jpg images. Click on window and press ESC button \n");
-        }
+            show_image(ai, buff);
+            cvWaitKey(0);
+        }*/
 
-        release_mat(&src);
+        cvReleaseImage(&src);
     }
     free(random_paths);
     return d;
 }
 #else    // OPENCV
-data load_data_detection(int n, char **paths, int m, int w, int h, int c, int boxes, int classes, int use_flip, float jitter,
-    float hue, float saturation, float exposure, int mini_batch, int track, int augment_speed, int show_imgs)
+data load_data_detection(int n, char **paths, int m, int w, int h, int c, int boxes, int classes, int use_flip, float jitter, float hue, float saturation, float exposure, int mini_batch, int track, int augment_speed)
 {
     c = c ? c : 3;
     char **random_paths;
@@ -937,10 +943,10 @@ data load_data_detection(int n, char **paths, int m, int w, int h, int c, int bo
 
         fill_truth_detection(random_paths[i], boxes, d.y.vals[i], classes, flip, dx, dy, 1. / sx, 1. / sy, w, h);
 
-        if(show_imgs)
+        /*
         {
-            char buff[1000];
-            sprintf(buff, "aug_%s_%d", basecfg(random_paths[i]), random_gen());
+            char buff[10];
+            sprintf(buff, "aug_%s_%d", random_paths[i], random_gen());
             int t;
             for (t = 0; t < boxes; ++t) {
                 box b = float_to_box_stride(d.y.vals[i] + t*(4 + 1), 1);
@@ -953,13 +959,8 @@ data load_data_detection(int n, char **paths, int m, int w, int h, int c, int bo
             }
 
             show_image(sized, buff);
-            if (show_imgs == 1) {
-                save_image(sized, buff);
-                wait_until_press_key_cv();
-            }
-            printf("\nYou use flag -show_imgs, so will be saved aug_...jpg images. Press Enter: \n");
-            getchar();
-        }
+            cvWaitKey(0);
+        }*/
 
         free_image(orig);
         free_image(cropped);
@@ -989,8 +990,7 @@ void *load_thread(void *ptr)
     } else if (a.type == REGION_DATA){
         *a.d = load_data_region(a.n, a.paths, a.m, a.w, a.h, a.num_boxes, a.classes, a.jitter, a.hue, a.saturation, a.exposure);
     } else if (a.type == DETECTION_DATA){
-        *a.d = load_data_detection(a.n, a.paths, a.m, a.w, a.h, a.c, a.num_boxes, a.classes, a.flip, a.jitter,
-            a.hue, a.saturation, a.exposure, a.mini_batch, a.track, a.augment_speed, a.show_imgs);
+        *a.d = load_data_detection(a.n, a.paths, a.m, a.w, a.h, a.c, a.num_boxes, a.classes, a.flip, a.jitter, a.hue, a.saturation, a.exposure, a.mini_batch, a.track, a.augment_speed);
     } else if (a.type == SWAG_DATA){
         *a.d = load_data_swag(a.paths, a.n, a.classes, a.jitter);
     } else if (a.type == COMPARE_DATA){

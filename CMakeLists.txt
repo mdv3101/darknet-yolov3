@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.8)
+cmake_minimum_required(VERSION 3.4)
 
 set(Darknet_MAJOR_VERSION 1)
 set(Darknet_MINOR_VERSION 0)
@@ -6,12 +6,9 @@ set(Darknet_PATCH_VERSION 0)
 set(Darknet_VERSION ${Darknet_MAJOR_VERSION}.${Darknet_MINOR_VERSION}.${Darknet_PATCH_VERSION})
 
 set(CMAKE_VERBOSE_MAKEFILE "FALSE" CACHE BOOL "Create verbose makefile")
-set(BUILD_SHARED_LIBS "TRUE" CACHE BOOL "Create darklib as a shared library")
 
 if(DEFINED ENV{VCPKG_ROOT} AND NOT DEFINED CMAKE_TOOLCHAIN_FILE)
-  set(CMAKE_TOOLCHAIN_FILE "$ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake" CACHE STRING "")
-  message(STATUS "VCPKG found: $ENV{VCPKG_ROOT}")
-  message(STATUS "Using VCPKG integration")
+  set(CMAKE_TOOLCHAIN_FILE "${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake" CACHE STRING "")
 endif()
 
 project(Darknet VERSION ${Darknet_VERSION})
@@ -100,9 +97,6 @@ if(CMAKE_COMPILER_IS_GNUCC)
 endif()
 
 if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
-  if (UNIX AND NOT APPLE)
-    set(CMAKE_CXX_FLAGS "-pthread ${CMAKE_CXX_FLAGS}")  #force pthread to avoid bugs in some cmake setups
-  endif()
   set(CMAKE_CXX_FLAGS "-Wno-deprecated -Wno-writable-strings ${CMAKE_CXX_FLAGS}")
   string(REGEX REPLACE "-O0" "-Og" CMAKE_CXX_FLAGS_DEBUG ${CMAKE_CXX_FLAGS_DEBUG})
   string(REGEX REPLACE "-O3" "-Ofast" CMAKE_CXX_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE})
@@ -180,14 +174,14 @@ if(ENABLE_CUDA)
       include_directories(${ZED_INCLUDE_DIRS})
       link_directories(${ZED_LIBRARY_DIR})
       add_definitions(-DZED_STEREO)
-      message(STATUS "ZED SDK enabled")
+      message("ZED Camera support enabled")
     else()
-      message(STATUS "ZED SDK not found")
+      message(WARNING "ZED SDK not found !")
       set(ENABLE_ZED_CAMERA "FALSE" CACHE BOOL "Enable ZED Camera support" FORCE)
     endif()
   endif()
 else()
-  message(STATUS "ZED SDK not enabled, since it requires CUDA")
+  message(WARNING "ZED SDK requires CUDA !")
   set(ENABLE_ZED_CAMERA "FALSE" CACHE BOOL "Enable ZED Camera support" FORCE)
 endif()
 
@@ -224,7 +218,6 @@ file(GLOB sources "${CMAKE_CURRENT_LIST_DIR}/src/*.c")
 #add also .cpp files
 list(APPEND sources
   ${CMAKE_CURRENT_LIST_DIR}/src/http_stream.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/src/image_opencv.cpp
 )
 #remove darknet.c file which is necessary only for the executable, not for the lib
 list(REMOVE_ITEM sources
@@ -330,19 +323,21 @@ endif()
 
 set_target_properties(darklib PROPERTIES PUBLIC_HEADER "${exported_headers};${CMAKE_CURRENT_LIST_DIR}/include/yolo_v2_class.hpp")
 
-install(TARGETS darklib EXPORT DarknetTargets
+install(TARGETS darklib uselib darknet EXPORT DarknetTargets
   RUNTIME DESTINATION "${INSTALL_BIN_DIR}"
   LIBRARY DESTINATION "${INSTALL_LIB_DIR}"
   ARCHIVE DESTINATION "${INSTALL_LIB_DIR}"
   PUBLIC_HEADER DESTINATION "${INSTALL_INCLUDE_DIR}"
   COMPONENT dev
 )
-install(TARGETS uselib darknet
-  DESTINATION "${INSTALL_BIN_DIR}"
-)
 if(OpenCV_VERSION VERSION_GREATER "3.0" AND NOT SKIP_USELIB_TRACK)
   install(TARGETS uselib_track
-    DESTINATION "${INSTALL_BIN_DIR}"
+    EXPORT DarknetTargets
+    RUNTIME DESTINATION "${INSTALL_BIN_DIR}"
+    LIBRARY DESTINATION "${INSTALL_LIB_DIR}"
+    ARCHIVE DESTINATION "${INSTALL_LIB_DIR}"
+    PUBLIC_HEADER DESTINATION "${INSTALL_INCLUDE_DIR}"
+    COMPONENT dev
   )
 endif()
 
